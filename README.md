@@ -3,6 +3,10 @@
 This repo contains the heuristic used to compute the initial upper bound for the m-ctp.
 
 The heuristic works as follows:
+let M be the set of mandatory facilities. 
+
+let n \in \mathbb{N}
+
 0 - best <- \empty
 
 1 - Identify a subset, denoted as S, of optional facilities that collectively cover all customers. Once all customers are covered, eliminate any redundant facilities.
@@ -13,7 +17,7 @@ The heuristic works as follows:
 
 4 - Apply the HGS-CVRP algorithm on S' ∪ M.
 
-5 - If the cost of S' is lower than that of S, replace S with S', and return to step 3. Else, best <- S, and return to step 1.
+5 - If the cost of S' is lower than that of S, replace S with S', and return to step 3. If, after the n-th application of step 3, cost S' > cost S, go to step 1.
 
 6 - Repeat these steps until the time limit is reached and return best.
 
