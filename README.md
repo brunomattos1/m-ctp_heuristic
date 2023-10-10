@@ -3,9 +3,8 @@
 This repo contains the heuristic used to compute the initial upper bound for the m-ctp.
 
 The heuristic works as follows:
-let M be the set of mandatory facilities. 
 
-let n \in \mathbb{N}
+let M be the set of mandatory facilities and  $n \in \mathbb{N}$
 
 0 - best <- \empty
 
