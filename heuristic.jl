@@ -28,7 +28,7 @@ function parse_commandline(args_array::Array{String,1}, appfolder::String)
     return parse_args(args_array, s)
 end
 
-function heuristic(data, iter::Int64, time_lim::Int64, q::Int64)
+function heuristic(data, iter::Int64, time_lim::Int64)
     C, O, M = data.C, data.O, data.M
     bs_O = BitSet(O)
     p_ = data.p
@@ -39,13 +39,6 @@ function heuristic(data, iter::Int64, time_lim::Int64, q::Int64)
     get_covered_by_optional2(o) = all_covered2[o - length(M)]
     cover_aux = zeros(length(C) + length(O) + length(M))
 
-    maxL = 0.0
-    for i in vcat(O,M)
-        e = (0,i)
-        if c(data,e) > maxL
-            maxL = c(data,e)
-        end
-    end
     function CPUtok()
         time += CPUtoq()
         CPUtic()
@@ -210,7 +203,7 @@ function main()
     app = parse_commandline(ARGS, appfolder)
     instance_name = split(basename(app["instance"]), ".")[1]
     data = read_data(app)
-    opt, time, i_ = heuristic(data, app["iter"], app["time"], app["duration"])
+    opt, time, i_ = heuristic(data, app["iter"], app["time"])
     @show instance_name, i_, opt, time
 end
 main()
