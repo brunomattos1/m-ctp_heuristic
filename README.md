@@ -1,10 +1,10 @@
-# m-ctp_heuristic
+# A ruin-and-recreate like heuristic for the Multi Vehicle Covering Tour Problem.
 
-This repo contains the heuristic used to compute the initial upper bound for the m-ctp.
+This repo contains a simple heuristic to find good feasible solutions for m-ctp.
 
 The heuristic works as follows:
 
-let M be the set of mandatory facilities and  $n \in \mathbb{N}$
+Let M be the set of mandatory facilities and  $n \in \mathbb{N}$
 
 0 - best <- \empty
 
