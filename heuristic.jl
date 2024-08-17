@@ -1,4 +1,4 @@
-include("data.jl")
+include("data.jl") # informations about the instance
 
 using ArgParse
 import Unicode
@@ -6,24 +6,19 @@ using Hygese
 using CPUTime
 using Random
 function parse_commandline(args_array::Array{String,1}, appfolder::String)
-    s = ArgParseSettings(usage = "##### VRPSolver #####\n\n"*
+    s = ArgParseSettings(usage = "##### m-CTP #####\n\n"*
         "  On interactive mode, call main([\"arg1\", ..., \"argn\"])", exit_after_help = false)
     @add_arg_table s begin
        "instance"
           help = "Instance file path"
-          default = "data/CAB25.txt"
        "--iter","-i"
           help = "number of iterations"
           arg_type = Int64
           default = 100000000
-        "--tempo","-t"
+        "--time","-t"
         help = "time limit in seconds"
         arg_type = Int64
         default = 180
-        "--model","-m"
-        help = "problem model"
-        arg_type = Int64
-        default = 1
         "--duration","-q"
         help = "problem model"
         arg_type = Int64
@@ -33,11 +28,11 @@ function parse_commandline(args_array::Array{String,1}, appfolder::String)
     return parse_args(args_array, s)
 end
 
-function heuristic(data, iter::Int64, tempo_lim::Int64, q::Int64)
+function heuristic(data, iter::Int64, time_lim::Int64, q::Int64)
     C, O, M = data.C, data.O, data.M
     bs_O = BitSet(O)
     p_ = data.p
-    tempo = 0
+    time = 0
     all_covered = [BitSet(cover_by_optional(data, o)) for o in O]
     get_covered_by_optional(o) = all_covered[o - length(M)]
     all_covered2 = [cover_by_optional(data, o) for o in O]
@@ -52,16 +47,15 @@ function heuristic(data, iter::Int64, tempo_lim::Int64, q::Int64)
         end
     end
     function CPUtok()
-        tempo += CPUtoq()
+        time += CPUtoq()
         CPUtic()
-        return tempo
+        return time
     end
 
-    function monta_sol(S::Vector{Int})
-        # @show S
-        cob_S = BitSet()
+    function build_sol(S::Vector{Int})
+        cov_S = BitSet()
         for i = 1:length(S)
-            cob_S = cob_S ∪ get_covered_by_optional(S[i])
+            cov_S = cov_S ∪ get_covered_by_optional(S[i])
         end
         cont = true
         aux = Set()
@@ -71,23 +65,21 @@ function heuristic(data, iter::Int64, tempo_lim::Int64, q::Int64)
             end
         end
         while cont
-            j = rand(aux) # sortear quem cobre, fora do S
-            #@show j
+            j = rand(aux) # select a random facility to enter S
             c_j = get_covered_by_optional(j)
 
-            cob_S_j = cob_S ∪ c_j
-            if length(cob_S_j) > length(cob_S)
+            cov_S_j = cov_S ∪ c_j
+            if length(cov_S_j) > length(cov_S)
                 push!(S, j)
                 delete!(aux, j)
                 for o in aux
-                    if isempty(setdiff(get_covered_by_optional(o), cob_S))
+                    if isempty(setdiff(get_covered_by_optional(o), cov_S))
                         delete!(aux, o)
                     end
                 end
-                cob_S = cob_S_j
+                cov_S = cov_S_j
             end
-            #@show length(cob_S)
-            if length(cob_S) >= length(C)
+            if length(cov_S) >= length(C) # if all customers are covered
                 cont = false
                 
                 cover_aux = fill!(cover_aux, 0)
@@ -99,6 +91,7 @@ function heuristic(data, iter::Int64, tempo_lim::Int64, q::Int64)
 
                 i = 1
                 k = length(S)
+                # removing redundant facilities
                 while i < k
                     can_delete = true
                     for c in get_covered_by_optional2(S[i])
@@ -117,11 +110,10 @@ function heuristic(data, iter::Int64, tempo_lim::Int64, q::Int64)
                 end                
             end
         end
-        # @show S
         return S
     end
     
-    function perturba(S::Vector{Int}, k::Int64, t::Float64, nm::Int, custoS::Float64, tempo_lim::Int)
+    function perturbate(S::Vector{Int}, k::Int64, t::Float64, nm::Int, costS::Float64, time_lim::Int)
         n_m = 0
         while n_m < nm
             CPUtic()
@@ -132,30 +124,29 @@ function heuristic(data, iter::Int64, tempo_lim::Int64, q::Int64)
                 dist_matS[i] = c(data, e)
             end
             
-            kpertos = sortperm(dist_matS, alg=MergeSort)[1:k]
+            kclose = sortperm(dist_matS, alg=MergeSort)[1:k]
     
-            aux = setdiff(S, S[kpertos])
+            aux = setdiff(S, S[kclose])
             shuffle!(aux)
-            #@show aux
-            S′ = monta_sol(aux)
+            S′ = build_sol(aux)
             
-            custoS′ = call_cvrp(S′, t)
+            costS′ = call_cvrp(S′, t)
             
-            if custoS′ < custoS - 0.001
-                custoS = custoS′
+            if costS′ < costS - 0.001
+                costS = costS′
                 S = S′
-                @show custoS, CPUtok(), n_m, length(S)
+                @show costS, CPUtok(), n_m, length(S)
                 n_m = 0
                 
             else
                 n_m += 1
             end
-            if CPUtok()>tempo_lim
+            if CPUtok()>time_lim
                 break
             end
             
         end
-        return S, custoS
+        return S, costS
     end
     
     
@@ -178,7 +169,6 @@ function heuristic(data, iter::Int64, tempo_lim::Int64, q::Int64)
         end
         cap = p_
         veh = length(V)
-       # dur_limit = 2*maxL + q
         ap = AlgorithmParameters(timeLimit = t, nbIter = 1, mu = 3, lambda = 10) # seconds
         result = solve_cvrp(dist_mat, demand, cap, ap, verbose = false)
         
@@ -189,21 +179,21 @@ function heuristic(data, iter::Int64, tempo_lim::Int64, q::Int64)
     opt = 100000000.0
     i_ = 0
     CPUtic()
-    while i_<iter && CPUtok()<tempo_lim
+    while i_<iter && CPUtok()<time_lim
         
-        S = monta_sol(Int[])
-        custoS = call_cvrp(S, 1.0)
+        S = build_sol(Int[])
+        costS = call_cvrp(S, 1.0)
         
 
-        @show i_, custoS, CPUtok()
-        if custoS < opt - 0.001
-            opt = custoS
+        @show i_, costS, CPUtok()
+        if costS < opt - 0.001
+            opt = costS
         end
         
-        if CPUtok()<tempo_lim                  #
-            S′, custoS′ = perturba(S, 3, 1.0, 200, custoS, tempo_lim)
-            if custoS′ < opt - 0.001
-                opt = custoS′
+        if CPUtok()<time_lim                  #
+            S′, costS′ = perturbate(S, 3, 1.0, 200, costS, time_lim)
+            if costS′ < opt - 0.001
+                opt = costS′
                 S = S′
             end
         end
@@ -217,14 +207,10 @@ end
 
 function main()
     appfolder = dirname(@__FILE__)
-    "$appfolder/540-1/X11119A"
-
-    appfolder = dirname(@__FILE__)
-    @show appfolder
     app = parse_commandline(ARGS, appfolder)
     instance_name = split(basename(app["instance"]), ".")[1]
     data = read_data(app)
-    opt, tempo, i_ = heuristic(data, app["iter"], app["tempo"], app["duration"])
-    @show instance_name, i_, opt, tempo
+    opt, time, i_ = heuristic(data, app["iter"], app["time"], app["duration"])
+    @show instance_name, i_, opt, time
 end
 main()
